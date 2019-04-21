@@ -6,14 +6,13 @@ sr_cut <- function(variable, ...) UseMethod('sr_cut')
 #' Cut Numeric
 #' @import data.table
 #' @export
-
 sr_cut.numeric <- function(variable, k){
-  breaksV <- quantile(variable, 
+  breaksV <- quantile(variable,
                       probs = (0 : k) / k)
-  labelsV <- vapply(1:(length(breaksV) - 1), 
+  labelsV <- vapply(1:(length(breaksV) - 1),
                     function(x) paste0(breaksV[x], ' : ', breaksV[x + 1]),
                     FUN.VALUE = character(1))
-  cut(variable, 
+  cut(variable,
       breaks = breaksV,
       labels = labelsV,
       include.lowest = TRUE)
@@ -22,7 +21,6 @@ sr_cut.numeric <- function(variable, k){
 #' Cut Character
 #' @import data.table
 #' @export
-
 sr_cut.character <- function(variable, ...){
   as.factor(variable)
 }
@@ -30,8 +28,6 @@ sr_cut.character <- function(variable, ...){
 #' Cut Factor
 #' @import data.table
 #' @export
-
-
 sr_cut.factor <- function(variable, ...){
   variable
 }
@@ -49,7 +45,7 @@ sr_stratify <- function(dat, id, variables, k = 4){
     k <- c(k, kAppend)
   }
   dat <- c(setNames(list(dat[[id]]), id),
-           lapply(setNames(variables, variables), 
+           lapply(setNames(variables, variables),
                   function(v) sr_cut(dat[[v]], k = k[v])
            )
   )
@@ -57,9 +53,9 @@ sr_stratify <- function(dat, id, variables, k = 4){
   dat[, stratum:= .GRP, by = variables]
   dat[, count:= .N, by = .(stratum)]
   setcolorder(dat, c(id, 'stratum', 'count'))
-  
+
   stratumV <- setNames(unique(dat$stratum), unique(dat$stratum))
-  
+
   structure(list(ids = dat[, c(id, 'stratum'), with = FALSE],
                  strata = unique(dat[, setdiff(names(dat), id), with = FALSE]),
                  levels = lapply(as.list(dat)[variables], levels)),
@@ -70,19 +66,20 @@ sr_stratify <- function(dat, id, variables, k = 4){
 #' @import data.table
 #' @export
 sr_treat <- function(x, assignment = c('Treated' = 0.5, 'Control' = 0.5), seed = NULL){
-  strataDT <- copy(strObj$strata)
+  strataDT <- copy(x$strata)
+  idDT <- copy(x$ids)
   strataV <- unique(strataDT$stratum)
-  idDT <- copy(strObj$ids)
-  
+
+
   vLength <- max(1/assignment)
   assignment <- unlist(lapply(names(assignment), function(x) rep(x, assignment[x]*vLength)))
-  
+
   if(!is.null(seed)){
     set.seed(seed = seed)
     seedV <- setNames(sample(strataV), strataV)
     strataDT[, seed:= seedV[stratum]]
   }
-  
+
   for(s in strataV){
     count <- strataDT[stratum == s, count]
     sAssign <- rep(assignment, length.out = count)
@@ -103,7 +100,7 @@ sr_qplot <- function(x, selected = NULL){
   strata <- melt(strata, id.vars = c('stratum', 'count'))
   strata <- strata[, list(count = sum(count)), by = c('variable', 'value')]
   strata[, value:= factor(value, levels = unlist(x$levels))]
-  
+
   ggplot(data = strata, aes(x = value, y = count)) +
     theme(axis.text = element_text(angle = 45, color = 'black')) +
     geom_bar(stat = 'identity', fill = 'lightblue') +
@@ -122,12 +119,12 @@ sr_gridsearch <- function(dat, id, variables){
   )
   kgrid <- as.data.table(kgrid)
   kgrid[, (cvars):= 1]
-  
+
   kgrid$minsize <- unlist(
-    lapply(1:nrow(kgrid), 
+    lapply(1:nrow(kgrid),
            function(rownum) sr_minStratSize(x = rownum,
                                             kgrid = kgrid,
-                                            dat = dat, 
+                                            dat = dat,
                                             id = id,
                                             variables = variables))
   )
@@ -139,7 +136,7 @@ sr_gridsearch <- function(dat, id, variables){
 #' @export
 sr_minStratSize <- function(x, kgrid, dat, id, variables){
   tryCatch({
-    strObj <- sr_stratify(dat = dat, 
+    strObj <- sr_stratify(dat = dat,
                           id = id,
                           variables = variables,
                           k = setNames(as.numeric(kgrid[x]), names(kgrid)))
@@ -169,7 +166,7 @@ print.strata <- function(x){
 #' @import data.table
 #' @export
 summary.strata <- function(x){
-  summary(strObj$strata)
+  summary(x$strata)
 }
 
 
