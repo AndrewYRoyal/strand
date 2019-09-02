@@ -80,7 +80,7 @@ sr_treat <- function(x, rate = 0.5, seed = NULL){
     s_count <- strataDT[stratum == s, count]
     stratum_assign = rep('Control', s_count)
     if(!is.null(seed)) set.seed(seed = strataDT[stratum == s, seed])
-    stratum_assign[sample(1:s_count, rate * s_count, replace = FALSE)] = 'Treated'
+    stratum_assign[sample(1:s_count, ceiling(rate * s_count), replace = FALSE)] = 'Treated'
     idDT[stratum == s, treatment:= stratum_assign]
   }
   idDT
