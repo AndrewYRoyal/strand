@@ -65,14 +65,10 @@ sr_stratify <- function(dat, id, variables, k = 4){
 #' Assign Treatment
 #' @import data.table
 #' @export
-sr_treat <- function(x, assignment = c('Treated' = 0.5, 'Control' = 0.5), seed = NULL){
+sr_treat <- function(x, rate = 0.5, seed = NULL){
   strataDT <- copy(x$strata)
   idDT <- copy(x$ids)
   strataV <- unique(strataDT$stratum)
-
-
-  vLength <- max(1/assignment)
-  assignment <- unlist(lapply(names(assignment), function(x) rep(x, assignment[x]*vLength)))
 
   if(!is.null(seed)){
     set.seed(seed = seed)
@@ -81,11 +77,11 @@ sr_treat <- function(x, assignment = c('Treated' = 0.5, 'Control' = 0.5), seed =
   }
 
   for(s in strataV){
-    count <- strataDT[stratum == s, count]
-    sAssign <- rep(assignment, length.out = count)
+    s_count <- strataDT[stratum == s, count]
+    stratum_assign = rep('Control', s_count)
     if(!is.null(seed)) set.seed(seed = strataDT[stratum == s, seed])
-    sAssign <- sample(sAssign, size = count, replace = FALSE)
-    idDT[stratum == s, treatment:= sAssign]
+    stratum_assign[sample(1:s_count, rate * s_count, replace = FALSE)] = 'Treated'
+    idDT[stratum == s, treatment:= stratum_assign]
   }
   idDT
 }
