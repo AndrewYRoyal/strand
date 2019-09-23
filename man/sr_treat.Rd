@@ -4,7 +4,7 @@
 \alias{sr_treat}
 \title{Assign Treatment}
 \usage{
-sr_treat(x, assignment = c(Treated = 0.5, Control = 0.5), seed = NULL)
+sr_treat(x, rate = 0.5, seed = NULL)
 }
 \description{
 Assign Treatment

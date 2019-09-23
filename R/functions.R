@@ -166,3 +166,104 @@ summary.strata <- function(x){
 }
 
 
+#' Search for PS Feature
+#' @import data.table
+#' @export
+sr_feature_search <- function(dat,
+                              form,
+                              features,
+                              ll_ratio_min = 1)
+{
+  if(length(features) < 1) return(list(form = form, last_ll = NULL))
+  mfit <- glm(formula = form, family = 'binomial', data = dat)
+  base_ll <- logLik(mfit)[1]
+  names(features) <- features
+  ll_ratio <- sapply(features, function(variable){
+    new_form <- paste0(form, '+', variable)
+    mfit <- glm(formula = new_form, family = 'binomial', data = dat)
+    -2 * (base_ll[1] - logLik(mfit)[1])
+  })
+  if(max(ll_ratio) < ll_ratio_min){
+    return(list(form = form,
+                features = strsplit(strsplit(form, '~ ')[[1]][2], '\\+')[[1]]))
+
+  }
+  new_term <- names(ll_ratio)[which.max(ll_ratio)]
+  form <- paste0(form, '+', new_term)
+  sr_feature_search(dat = dat,
+                    form = form,
+                    features = setdiff(features, new_term),
+                    ll_ratio_min = ll_ratio_min)
+
+}
+
+#' Imbens-Rubin Propensity Score
+#' @import data.table
+#' @export
+sr_pscore <- function(dat,
+                      primary,
+                      secondary,
+                      id_var,
+                      min_ratios = c('lin' = 2.71, 'quad' = 2.71))
+{
+  dat <- copy(dat)
+  lin_model <- sr_feature_search(dat = dat,
+                                 form = paste0('treated ~ ', paste0(primary, collapse = '+')),
+                                 features = secondary,
+                                 ll_ratio_min = min_ratios['lin'])
+  quad_terms <- character(0L)
+  for(i in 1:length(lin_model$features)){
+    quad_terms <- c(quad_terms,
+                    paste0(lin_model$features[i], '*', lin_model$features[i:length(lin_model$features)]))
+  }
+  quad_model <- sr_feature_search(dat = dat,
+                                  form = lin_model$form,
+                                  features = quad_terms,
+                                  ll_ratio_min = min_ratios['quad'])
+  mfit <- glm(formula = quad_model$form, data = dat, family = 'binomial')
+  dat[, pscore:= predict(mfit, dat, type = 'response')]
+
+  list(mod = mfit,
+       pscores = setNames(dat$pscore, dat[[id_var]]))
+}
+
+#' Inexact Sequential Matching
+#' @import data.table
+#' @import distances
+#' @export
+sr_match <- function(dat,
+                     d_vars,
+                     id_var,
+                     treat_var,
+                     pscores,
+                     trim = c('min' = 0, 'max' = 1),
+                     mahalanobis = TRUE)
+{
+  dat <- copy(dat)
+  cdf <- ecdf(pscores)
+  untrimmed <- list(min = min(pscores), max = max(pscores), N = length(pscores))
+  pscores <- pscores[cdf(pscores) > trim['min'] & cdf(pscores) < trim['max']]
+  trimmed <- list(min = min(pscores), max = max(pscores), N = length(pscores))
+  if(trim['min'] != 0 & trim['max'] != 1){
+    cat(sprintf('%s observations trimmed. \n P. Score Range changed from [%s, %s] to [%s, %s] \n',
+                untrimmed$N - trimmed$N, untrimmed$min, untrimmed$max, trimmed$min, trimmed$max))
+  }
+  ids = names(sort(pscores, decreasing = TRUE))
+  ids_treat = ids[ids %in% dat[get(treat_var) == 1, id]]
+  ids_comp = ids[ids %in% dat[get(treat_var) == 0, id]]
+  id_rowDict <- setNames(rownames(dat), dat[[id_var]])
+  method = 'mahalanobize'
+  if(!mahalanobis) method = NULL
+
+  dstObj <- distances(data = dat[, .SD, .SDcols = c(id_var, d_vars)],
+                      id_variable = 'id',
+                      normalize = method)
+  matchDT <- data.table(id = ids_treat, match = as.character(NA))
+  for(i in ids_treat){
+    distM = distance_columns(dstObj, as.numeric(id_rowDict[i]))
+    distM = distM[!(rownames(distM) %in% c(na.omit(matchDT$match), ids_treat)), ]
+    matchDT[id == i, match:= names(distM[which.min(distM)])]
+  }
+  setNames(matchDT$match, matchDT$id)
+}
+
