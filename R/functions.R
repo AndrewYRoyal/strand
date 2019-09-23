@@ -249,14 +249,14 @@ sr_match <- function(dat,
                 untrimmed$N - trimmed$N, untrimmed$min, untrimmed$max, trimmed$min, trimmed$max))
   }
   ids = names(sort(pscores, decreasing = TRUE))
-  ids_treat = ids[ids %in% dat[get(treat_var) == 1, id]]
-  ids_comp = ids[ids %in% dat[get(treat_var) == 0, id]]
+  ids_treat = ids[ids %in% dat[get(treat_var) == 1][[id_var]]]
+  ids_comp = ids[ids %in% dat[get(treat_var) == 0][[id_var]]]
   id_rowDict <- setNames(rownames(dat), dat[[id_var]])
   method = 'mahalanobize'
   if(!mahalanobis) method = NULL
 
   dstObj <- distances(data = dat[, .SD, .SDcols = c(id_var, d_vars)],
-                      id_variable = 'id',
+                      id_variable = id_var,
                       normalize = method)
   matchDT <- data.table(id = ids_treat, match = as.character(NA))
   for(i in ids_treat){
